@@ -52,6 +52,24 @@ module Searchkick
       end
     end
 
+    def records
+      @records ||= begin
+        results = {}
+        if options[:load]
+          hits.group_by { |hit, i| hit["_type"] }.each do |type, grouped_hits|
+            records = type.camelize.constantize
+            raise "\`records\` only supports ActiveRecord" unless records.try(:primary_key)
+            if options[:includes]
+              records = records.includes(options[:includes])
+            end
+            results[type] = records.where(records.primary_key => grouped_hits.map { |hit| hit["_id"] })
+          end
+
+          results
+        end
+      end
+    end
+
     def suggestions
       if response["suggest"]
         response["suggest"].values.flat_map { |v| v.first["options"] }.sort_by { |o| -o["score"] }.map { |o| o["text"] }.uniq
